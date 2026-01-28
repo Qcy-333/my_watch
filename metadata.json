@@ -1,0 +1,5 @@
+{
+  "name": "CommuteFlow Web",
+  "description": "A minimalist, platform-agnostic content stream player and archiver designed for the CommuteFlow workflow.",
+  "requestFramePermissions": []
+}
