@@ -5,6 +5,14 @@ const APP_SECRET = process.env.APP_SECRET;
 const APP_TOKEN = process.env.APP_TOKEN; // Base Token
 const TABLE_ID = process.env.TABLE_ID;
 
+// Log configuration status (without leaking secrets)
+console.log('Lark Config Check:', {
+  hasAppId: !!APP_ID,
+  hasAppSecret: !!APP_SECRET,
+  hasAppToken: !!APP_TOKEN,
+  hasTableId: !!TABLE_ID
+});
+
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 async function getTenantAccessToken() {
@@ -12,22 +20,33 @@ async function getTenantAccessToken() {
     return tokenCache.token;
   }
 
+  console.log('Getting new Tenant Access Token...');
   const url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
-  const response = await axios.post(url, {
-    app_id: APP_ID,
-    app_secret: APP_SECRET,
-  });
+  
+  try {
+    const response = await axios.post(url, {
+      app_id: APP_ID,
+      app_secret: APP_SECRET,
+    });
 
-  if (response.data.code !== 0) {
-    throw new Error(`Failed to get access token: ${response.data.msg}`);
+    if (response.data.code !== 0) {
+      console.error('Lark Token Error:', response.data);
+      throw new Error(`Failed to get access token: ${response.data.msg}`);
+    }
+
+    tokenCache = {
+      token: response.data.tenant_access_token,
+      expiresAt: Date.now() + (response.data.expire - 300) * 1000,
+    };
+
+    return tokenCache.token;
+  } catch (error: any) {
+    console.error('Lark Token Network/System Error:', error.message);
+    if (error.response) {
+       console.error('Error Response:', error.response.data);
+    }
+    throw error;
   }
-
-  tokenCache = {
-    token: response.data.tenant_access_token,
-    expiresAt: Date.now() + (response.data.expire - 300) * 1000,
-  };
-
-  return tokenCache.token;
 }
 
 export async function fetchToWatchVideos() {
