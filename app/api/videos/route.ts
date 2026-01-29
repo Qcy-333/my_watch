@@ -9,8 +9,8 @@ export async function GET() {
     const formatted = records.map((r: any) => ({
       id: r.record_id,
       title: getTextValue(r.fields["标题"]),
-      // Handle Link object or string
-      url: r.fields["链接"]?.link || r.fields["链接"] || '', 
+      // Handle Link object or string and ensure absolute URL
+      url: ensureAbsoluteUrl(extractUrl(r.fields["链接"])), 
       // Platform mapping
       platform: mapPlatform(r.fields["来源"]),
       status: 'ToWatch', // We only fetch ToWatch ('待看')
@@ -25,6 +25,39 @@ export async function GET() {
     console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+function ensureAbsoluteUrl(url: string): string {
+  if (!url) return '';
+  // Clean whitespace
+  let cleanUrl = url.trim();
+  // Add protocol if missing
+  if (!cleanUrl.match(/^https?:\/\//i)) {
+    cleanUrl = `https://${cleanUrl}`;
+  }
+  return cleanUrl;
+}
+
+function extractUrl(field: any): string {
+  if (!field) return '';
+  // Case 1: Direct string
+  if (typeof field === 'string') return field;
+  // Case 2: Link object (Url type field)
+  if (field.link) return field.link;
+  // Case 3: Array of segments (Text type field with mixed content)
+  if (Array.isArray(field)) {
+    // Find the first segment that looks like a URL or has a link property
+    for (const item of field) {
+      if (item.link) return item.link;
+      if (item.type === 'url' && item.text) return item.text;
+      // If it's a text segment but looks like a URL
+      if (item.text && item.text.match(/^https?:\/\//i)) return item.text;
+    }
+    // Fallback: join all text and try to find a URL
+    const fullText = field.map((item: any) => item.text || '').join('').trim();
+    return fullText;
+  }
+  return '';
 }
 
 function getTextValue(field: any): string {
